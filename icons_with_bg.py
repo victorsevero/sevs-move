@@ -7,7 +7,7 @@ icons_dir = os.listdir(path_icons)
 
 for file in icons_dir:
     with open(path_icons + file, 'rb') as fp:
-        background = Image.open('bg.png')
+        background = Image.open('overlays\\bg.png')
         icon = Image.open(fp).convert('RGBA')
         x, y = icon.size
         background.paste(icon, (0, 0, x, y), icon)
