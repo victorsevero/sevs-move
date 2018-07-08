@@ -1,20 +1,82 @@
 import cv2
 import numpy as np
 import os
+import shutil
 import image_slicer
-from PIL import Image
+import PIL.Image
 from pynput.keyboard import Key, Controller
-import time
 import subprocess
 import pandas as pd
+from tkinter import *
+
+import time
+# from IPython import embed
 
 PATH_BG = 'icons_with_bg\\'
 PATH_SLICES = 'slices\\'
 
+# def interface():
+#     top = Tk()
+#     top.title('Sevs Move')
+#     top.geometry('800x600')
+#     # top.wm_iconbitmap('icon.ico')
+#
+#     b = Button(top, text='Configurar time', command=ask_pokemons)
+#     b.pack()
+#
+#     B = Button(top, text='Scan & Fill', command=scan_e_preenchimento)
+#
+#     top.mainloop()
+
+
 def take_screenshot():
+
     subprocess.call('screenshot.bat')
 
+
+def slice_screenshot(screen):
+
+    dim = 175
+    y, x = 714, 15
+    crop = screen[y:y+6*dim, x:x+6*dim]
+    cv2.imwrite('board.png', crop)
+    tiles = image_slicer.slice('board.png', 36, save=False)
+    image_slicer.save_tiles(tiles, directory=PATH_SLICES)
+    slices_dir = os.listdir(PATH_SLICES)
+
+    return slices_dir
+
+
+def ask_pokemons():
+
+    pkmn_list = []
+    dex = pd.read_csv('pokemon.csv')
+    dex = dex.set_index('identifier')
+    name_to_number = dex.to_dict()
+    name_to_number = name_to_number['species_id']
+
+    n = int(input('Quantos pokémon/disruptions há no total? '))
+    for i in range(n):
+        pkmn = input('Qual o %d pokémon/disruption? ' % (i + 1)).lower()
+        pkmn_list.append(pkmn)
+
+    pkmn_list = ['%s.png' % str(name_to_number[pkmn]).zfill(3) for pkmn in pkmn_list]
+
+    return pkmn_list
+
+
+def resize128(file):
+
+    basedim = 128
+    img = PIL.Image.open(file)
+    wpercent = (basedim/float(img.size[0]))
+    hsize = int((float(img.size[1])*float(wpercent)))
+    img = img.resize((basedim,hsize), PIL.Image.ANTIALIAS)
+    img.save(file)
+
+
 def convert_png_to_key(pkmn_list, board):
+
     key_list = ['a', 's', 'e', 'r', 'g',
                 'd', 'w', 't', 'q', 'b',
                 'c', 'x', 'v', 'z', 'h',
@@ -31,31 +93,9 @@ def convert_png_to_key(pkmn_list, board):
 
     return board
 
-def resize128(file):
-    basedim = 128
-    img = Image.open(file)
-    wpercent = (basedim/float(img.size[0]))
-    hsize = int((float(img.size[1])*float(wpercent)))
-    img = img.resize((basedim,hsize), Image.ANTIALIAS)
-    img.save(file)
 
-def main():
-    if not os.path.exists(PATH_SLICES):
-        os.makedirs(PATH_SLICES)
+def match_board(slices_dir, pkmn_imgs):
 
-    slices_dir = os.listdir(PATH_SLICES)
-
-    screen = cv2.imread('screen.png')
-    template = cv2.imread('icons_with_bg\\717.png')
-    dim = 175
-    y, x = 714, 15
-
-    crop = screen[y:y+6*dim, x:x+6*dim]
-    cv2.imwrite('board.png', crop)
-    tiles = image_slicer.slice('board.png', 36, save=False)
-    image_slicer.save_tiles(tiles, directory=PATH_SLICES)
-
-    pkmn_imgs = ['302.png', '491.png', '649.png', '717.png']
     board = []
 
     for slice in slices_dir:
@@ -70,16 +110,33 @@ def main():
                 res_match = res
                 best_match = pkmn
         board.append(best_match)
-
     key_board = convert_png_to_key(pkmn_imgs, board)
-    # from IPython import embed; embed()
+
+    return key_board
+
+
+def scan_e_preenchimento():
+    if not os.path.exists(PATH_SLICES):
+        os.makedirs(PATH_SLICES)
+
+    # screen = cv2.imread('screen.png')
+    screen = take_screenshot()
+    slices_dir = slice_screenshot(screen)
+    # pkmn_imgs = ['302.png', '491.png', '649.png', '717.png']
+    pkmn_imgs = ask_pokemons()
+    board = match_board(slices_dir, pkmn_imgs)
+
     keyboard = Controller()
-    print('alterna carai')
     time.sleep(2)
 
-    for key in key_board:
+    for key in board:
         keyboard.press(key)
         keyboard.release(key)
 
+    shutil.rmtree(PATH_SLICES)
+    os.remove('screen.png')
+    os.remove('board.png')
+
+
 if __name__ == '__main__':
-    main()
+    scan_e_preenchimento()
